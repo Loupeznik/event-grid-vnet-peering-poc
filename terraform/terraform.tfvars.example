@@ -1,0 +1,52 @@
+# IMPORTANT: This file is for reference only
+# Use terraform.phase1.tfvars for Phase 1 deployment
+# Use terraform.phase2.tfvars for Phase 2 deployment
+# See docs/DEPLOYMENT-PHASES.md for details
+
+# Azure Subscription Configuration
+subscription_id = "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+
+# Cross-Subscription Configuration (Phase 2 only)
+# subscription_id_2 = "yyyyyyyy-yyyy-yyyy-yyyy-yyyyyyyyyyyy"
+
+# Region Configuration
+location = "northeurope"
+
+# Network Configuration (Optional - defaults are fine for most cases)
+# vnet1_address_space = ["10.0.0.0/16"]
+# vnet2_address_space = ["10.1.0.0/16"]
+# vnet3_address_space = ["10.2.0.0/16"]
+
+# Security Configuration
+
+# IP Restrictions: Add IP addresses or CIDR blocks allowed to access functions
+# In addition to Event Grid service tag and Azure management services
+allowed_ip_addresses = [
+  # Example: Corporate network
+  # "203.0.113.0/24",
+
+  # Example: Specific developer IP
+  # "198.51.100.42/32",
+
+  # Example: Bastion host
+  # "192.0.2.10/32"
+]
+
+# Entra ID Authentication
+# Enable Azure AD authentication for function webhook endpoints
+enable_function_authentication = true
+
+# Optional: Specify custom Azure AD tenant
+# If not provided, uses the current tenant from `az account show`
+# entra_tenant_id = "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+
+# App Service Plan SKU (Optional)
+# app_service_plan_sku = "B1"
+
+# Tags (Optional)
+# tags = {
+#   Environment = "PoC"
+#   Project     = "EventGrid-VNET-Peering"
+#   ManagedBy   = "Terraform"
+#   Owner       = "YourName"
+# }
