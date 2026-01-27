@@ -1,6 +1,7 @@
 using System.Text.Json;
 using Azure.Identity;
 using Azure.Messaging.EventGrid;
+using Azure.Messaging.EventHubs;
 using Microsoft.Azure.Functions.Worker;
 using Microsoft.Azure.Functions.Worker.Extensions.EventGrid;
 using Microsoft.Azure.Functions.Worker.Http;
@@ -115,5 +116,61 @@ public class EventGridFunctions
         {
             _logger.LogError(ex, "Failed to deserialize event data");
         }
+    }
+
+    [Function("ConsumeEventFromEventHub")]
+    public async Task ConsumeEventFromEventHub(
+        [EventHubTrigger("events", Connection = "EventHubConnection")]
+        EventData[] events)
+    {
+        _logger.LogInformation("=== Event Hub Trigger Fired ===");
+        _logger.LogInformation("Received {Count} events from Event Hub", events.Length);
+
+        foreach (var eventData in events)
+        {
+            try
+            {
+                var eventBody = eventData.EventBody.ToString();
+
+                // Event Grid wraps events in an array when delivering to Event Hub
+                var eventGridEvents = JsonSerializer.Deserialize<EventGridEvent[]>(eventBody);
+
+                if (eventGridEvents == null || eventGridEvents.Length == 0)
+                {
+                    _logger.LogWarning("No Event Grid events found in Event Hub message");
+                    continue;
+                }
+
+                foreach (var eventGridEvent in eventGridEvents)
+                {
+                    _logger.LogInformation("=== Event Grid Event from Event Hub ===");
+                    _logger.LogInformation("Event ID: {EventId}", eventGridEvent.Id);
+                    _logger.LogInformation("Event Type: {EventType}", eventGridEvent.EventType);
+                    _logger.LogInformation("Subject: {Subject}", eventGridEvent.Subject);
+                    _logger.LogInformation("Event Time: {EventTime}", eventGridEvent.EventTime);
+                    _logger.LogInformation("Sequence Number: {SequenceNumber}", eventData.SequenceNumber);
+                    _logger.LogInformation("Partition Key: {PartitionKey}", eventData.PartitionKey);
+
+                    var data = eventGridEvent.Data.ToObjectFromJson<Dictionary<string, object>>();
+                    var formattedData = JsonSerializer.Serialize(data,
+                        new JsonSerializerOptions { WriteIndented = true });
+                    _logger.LogInformation("Event Data:\n{Data}", formattedData);
+
+                    _logger.LogInformation(
+                        "✅ Successfully received event via FULLY PRIVATE path (Event Grid → Event Hub → Function)");
+                }
+            }
+            catch (JsonException ex)
+            {
+                _logger.LogError(ex, "Failed to parse Event Grid event from Event Hub");
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error processing Event Hub event");
+                throw;
+            }
+        }
+
+        await Task.CompletedTask;
     }
 }

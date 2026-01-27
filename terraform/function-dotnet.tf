@@ -213,11 +213,17 @@ resource "azurerm_linux_function_app" "dotnet" {
     }
   }
 
-  app_settings = {
-    "FUNCTIONS_WORKER_RUNTIME"       = "dotnet-isolated"
-    "EVENT_GRID_TOPIC_ENDPOINT"      = azurerm_eventgrid_topic.main.endpoint
-    "APPLICATIONINSIGHTS_CONNECTION_STRING" = azurerm_application_insights.dotnet_function[0].connection_string
-  }
+  app_settings = merge(
+    {
+      "FUNCTIONS_WORKER_RUNTIME"                  = "dotnet-isolated"
+      "EVENT_GRID_TOPIC_ENDPOINT"                 = azurerm_eventgrid_topic.main.endpoint
+      "APPLICATIONINSIGHTS_CONNECTION_STRING"     = azurerm_application_insights.dotnet_function[0].connection_string
+    },
+    var.enable_event_hub ? {
+      "EventHubConnection__fullyQualifiedNamespace" = "${azurerm_eventhub_namespace.main[0].name}.servicebus.windows.net"
+      "EventHubConnection__credential"              = "managedidentity"
+    } : {}
+  )
 
   identity {
     type = "SystemAssigned"

@@ -107,3 +107,14 @@ variable "entra_tenant_id" {
   type        = string
   default     = ""
 }
+
+variable "enable_event_hub" {
+  description = "Enable Event Hub delivery for .NET function (requires enable_dotnet_function=true)"
+  type        = bool
+  default     = false
+
+  validation {
+    condition     = var.enable_event_hub == false || var.enable_dotnet_function == true
+    error_message = "enable_event_hub requires enable_dotnet_function to be true. Event Hub is only used for .NET function delivery."
+  }
+}

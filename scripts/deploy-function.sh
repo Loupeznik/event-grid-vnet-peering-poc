@@ -24,6 +24,7 @@ RESOURCE_GROUP=$(terraform output -raw resource_group_function)
 EVENTGRID_TOPIC_NAME=$(terraform output -raw eventgrid_topic_name)
 EVENTGRID_RG=$(terraform output -raw resource_group_eventgrid)
 ENABLE_DOTNET=$(terraform output -raw enable_dotnet_function)
+ENABLE_EVENT_HUB=$(terraform output -raw enable_event_hub 2>/dev/null || echo "false")
 
 echo "Python Function App: $FUNCTION_APP_NAME"
 echo "Resource Group: $RESOURCE_GROUP"
@@ -201,23 +202,42 @@ echo ""
 
 if [ "$ENABLE_DOTNET" = "true" ]; then
     STEP_NUM=$((STEP_NUM + 1))
-    echo "Step $STEP_NUM: Creating .NET function Event Grid subscription..."
 
-    push_subscription "$DOTNET_SUBSCRIPTION"
-    DOTNET_FUNCTION_RESOURCE_ID=$(az functionapp show --name "$DOTNET_FUNCTION_APP_NAME" --resource-group "$DOTNET_RESOURCE_GROUP" --query id -o tsv)
-    pop_subscription
+    if [ "$ENABLE_EVENT_HUB" = "true" ]; then
+        echo "Step $STEP_NUM: Creating Event Grid subscription to Event Hub..."
 
-    DOTNET_SUB_NAME="func-dotnet-sub-$(date +%s)"
+        EVENTHUB_ID=$(cd "$PROJECT_ROOT/terraform" && terraform output -raw eventhub_id)
+        EVENTHUB_SUB_NAME="eventgrid-to-eventhub-$(date +%s)"
 
-    az eventgrid event-subscription create \
-        --name "$DOTNET_SUB_NAME" \
-        --source-resource-id "/subscriptions/$SUBSCRIPTION_1/resourceGroups/$EVENTGRID_RG/providers/Microsoft.EventGrid/topics/$EVENTGRID_TOPIC_NAME" \
-        --endpoint-type azurefunction \
-        --endpoint "$DOTNET_FUNCTION_RESOURCE_ID/functions/ConsumeEvent" \
-        --max-delivery-attempts 3 \
-        --event-delivery-schema eventgridschema
+        az eventgrid event-subscription create \
+            --name "$EVENTHUB_SUB_NAME" \
+            --source-resource-id "/subscriptions/$SUBSCRIPTION_1/resourceGroups/$EVENTGRID_RG/providers/Microsoft.EventGrid/topics/$EVENTGRID_TOPIC_NAME" \
+            --endpoint-type eventhub \
+            --endpoint "$EVENTHUB_ID" \
+            --max-delivery-attempts 3 \
+            --event-delivery-schema eventgridschema
 
-    echo "✅ .NET function Event Grid subscription created"
+        echo "✅ Event Grid subscription to Event Hub created"
+        echo "   .NET function will receive events via Event Hub trigger"
+    else
+        echo "Step $STEP_NUM: Creating .NET function Event Grid subscription (webhook)..."
+
+        push_subscription "$DOTNET_SUBSCRIPTION"
+        DOTNET_FUNCTION_RESOURCE_ID=$(az functionapp show --name "$DOTNET_FUNCTION_APP_NAME" --resource-group "$DOTNET_RESOURCE_GROUP" --query id -o tsv)
+        pop_subscription
+
+        DOTNET_SUB_NAME="func-dotnet-sub-$(date +%s)"
+
+        az eventgrid event-subscription create \
+            --name "$DOTNET_SUB_NAME" \
+            --source-resource-id "/subscriptions/$SUBSCRIPTION_1/resourceGroups/$EVENTGRID_RG/providers/Microsoft.EventGrid/topics/$EVENTGRID_TOPIC_NAME" \
+            --endpoint-type azurefunction \
+            --endpoint "$DOTNET_FUNCTION_RESOURCE_ID/functions/ConsumeEvent" \
+            --max-delivery-attempts 3 \
+            --event-delivery-schema eventgridschema
+
+        echo "✅ .NET function Event Grid subscription (webhook) created"
+    fi
     echo ""
 fi
 
@@ -232,6 +252,12 @@ if [ "$ENABLE_DOTNET" = "true" ]; then
     echo ""
     echo ".NET Function App URL: https://$DOTNET_FUNCTION_APP_NAME.azurewebsites.net"
     echo ".NET Publish endpoint: https://$DOTNET_FUNCTION_APP_NAME.azurewebsites.net/api/publish"
+
+    if [ "$ENABLE_EVENT_HUB" = "true" ]; then
+        echo ".NET Delivery Mode: Event Hub (fully private)"
+    else
+        echo ".NET Delivery Mode: Webhook (public endpoint with IP restrictions)"
+    fi
 fi
 
 echo ""

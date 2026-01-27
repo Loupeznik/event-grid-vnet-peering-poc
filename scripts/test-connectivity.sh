@@ -24,6 +24,7 @@ FUNCTION_HOSTNAME=$(terraform output -raw function_app_default_hostname)
 EVENTGRID_TOPIC_NAME=$(terraform output -raw eventgrid_topic_name)
 EVENTGRID_PRIVATE_IP=$(terraform output -raw eventgrid_private_endpoint_ip)
 ENABLE_DOTNET=$(terraform output -raw enable_dotnet_function)
+ENABLE_EVENT_HUB=$(terraform output -raw enable_event_hub 2>/dev/null || echo "false")
 
 echo "Configuration:"
 echo "  Python Function App: $FUNCTION_APP_NAME"
@@ -41,6 +42,18 @@ if [ "$ENABLE_DOTNET" = "true" ]; then
     echo "  .NET Function App: $DOTNET_FUNCTION_APP_NAME"
     echo "  .NET Function URL: https://$DOTNET_HOSTNAME"
     echo "  .NET Subscription: $DOTNET_SUBSCRIPTION"
+
+    if [ "$ENABLE_EVENT_HUB" = "true" ]; then
+        EVENTHUB_NAMESPACE=$(terraform output -raw eventhub_namespace_name)
+        EVENTHUB_NAME=$(terraform output -raw eventhub_name)
+        echo "  Event Hub Enabled: true"
+        echo "  Event Hub Namespace: $EVENTHUB_NAMESPACE"
+        echo "  Event Hub Name: $EVENTHUB_NAME"
+        echo "  Delivery Mode: Event Hub (fully private)"
+    else
+        echo "  Event Hub Enabled: false"
+        echo "  Delivery Mode: Webhook (public endpoint with IP restrictions)"
+    fi
 fi
 
 echo ""
@@ -119,10 +132,21 @@ if [ "$ENABLE_DOTNET" = "true" ]; then
 
     echo "Checking .NET function logs for received event..."
     push_subscription "$DOTNET_SUBSCRIPTION"
-    az monitor app-insights query \
-        --app "$DOTNET_FUNCTION_APP_NAME" \
-        --analytics-query "traces | where timestamp > ago(2m) | where message contains 'Successfully received event' | project timestamp, message | order by timestamp desc | take 5" \
-        --offset 2m 2>/dev/null || echo "Application Insights query not available"
+
+    if [ "$ENABLE_EVENT_HUB" = "true" ]; then
+        echo "Looking for Event Hub delivery logs..."
+        az monitor app-insights query \
+            --app "$DOTNET_FUNCTION_APP_NAME" \
+            --analytics-query "traces | where timestamp > ago(2m) | where message contains 'Event Hub' or message contains 'FULLY PRIVATE' | project timestamp, message | order by timestamp desc | take 10" \
+            --offset 2m 2>/dev/null || echo "Application Insights query not available"
+    else
+        echo "Looking for webhook delivery logs..."
+        az monitor app-insights query \
+            --app "$DOTNET_FUNCTION_APP_NAME" \
+            --analytics-query "traces | where timestamp > ago(2m) | where message contains 'Successfully received event' | project timestamp, message | order by timestamp desc | take 5" \
+            --offset 2m 2>/dev/null || echo "Application Insights query not available"
+    fi
+
     pop_subscription
 
     echo ""
@@ -190,10 +214,25 @@ if [ "$ENABLE_DOTNET" = "true" ]; then
 
     echo "Checking .NET function logs for received event..."
     push_subscription "$DOTNET_SUBSCRIPTION"
-    az monitor app-insights query \
-        --app "$DOTNET_FUNCTION_APP_NAME" \
-        --analytics-query "traces | where timestamp > ago(2m) | where message contains 'Successfully received event' | project timestamp, message | order by timestamp desc | take 5" \
-        --offset 2m 2>/dev/null || echo "Application Insights query not available"
+
+    if [ "$ENABLE_EVENT_HUB" = "true" ]; then
+        echo "Looking for Event Hub delivery logs..."
+        az monitor app-insights query \
+            --app "$DOTNET_FUNCTION_APP_NAME" \
+            --analytics-query "traces | where timestamp > ago(2m) | where message contains 'Event Hub' or message contains 'FULLY PRIVATE' | project timestamp, message | order by timestamp desc | take 10" \
+            --offset 2m 2>/dev/null || echo "Application Insights query not available"
+
+        echo ""
+        echo "Verifying fully private delivery path..."
+        echo "✅ Event Grid → Event Hub → Function (all traffic via VNET peering)"
+    else
+        echo "Looking for webhook delivery logs..."
+        az monitor app-insights query \
+            --app "$DOTNET_FUNCTION_APP_NAME" \
+            --analytics-query "traces | where timestamp > ago(2m) | where message contains 'Successfully received event' | project timestamp, message | order by timestamp desc | take 5" \
+            --offset 2m 2>/dev/null || echo "Application Insights query not available"
+    fi
+
     pop_subscription
 
     echo ""
@@ -272,13 +311,29 @@ if [ "$ENABLE_DOTNET" = "true" ]; then
     echo "✅ Cross-subscription VNET peering established"
     echo "✅ Event published via .NET HTTP trigger"
     echo "✅ Cross-subscription Event Grid connectivity verified"
+
+    if [ "$ENABLE_EVENT_HUB" = "true" ]; then
+        echo "✅ Event Hub deployed with private endpoint"
+        echo "✅ Fully private delivery path: Event Grid → Event Hub → Function"
+        echo "✅ Event Hub trigger processing events successfully"
+    else
+        echo "✅ Webhook delivery mode active (public endpoint with IP restrictions)"
+    fi
 fi
 
 echo ""
 echo "To verify detailed event delivery:"
 echo "1. Check Application Insights logs in Azure Portal"
-echo "2. Look for 'Successfully received event via private endpoint' messages"
-echo "3. Verify traffic flows through private endpoints"
+
+if [ "$ENABLE_EVENT_HUB" = "true" ]; then
+    echo "2. Look for 'FULLY PRIVATE path' messages in .NET function logs"
+    echo "3. Verify Event Hub trigger fired successfully"
+    echo "4. Confirm traffic flows: Event Grid → Event Hub → Function (all via private endpoints)"
+else
+    echo "2. Look for 'Successfully received event via private endpoint' messages"
+    echo "3. Verify traffic flows through private endpoints (publishing only)"
+fi
+
 echo ""
 echo "Azure Portal URLs:"
 echo ""

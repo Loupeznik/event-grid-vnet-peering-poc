@@ -133,3 +133,34 @@ output "dotnet_function_client_id" {
   value       = var.enable_dotnet_function && var.enable_function_authentication ? azuread_application.dotnet_function[0].client_id : null
 }
 
+# Event Hub Outputs (Conditional)
+output "enable_event_hub" {
+  description = "Whether Event Hub delivery is enabled"
+  value       = var.enable_event_hub
+}
+
+output "eventhub_resource_group" {
+  description = "Event Hub resource group name"
+  value       = var.enable_dotnet_function && var.enable_event_hub ? azurerm_resource_group.eventhub[0].name : null
+}
+
+output "eventhub_namespace_name" {
+  description = "Event Hub namespace name"
+  value       = var.enable_dotnet_function && var.enable_event_hub ? azurerm_eventhub_namespace.main[0].name : null
+}
+
+output "eventhub_namespace_fqdn" {
+  description = "Event Hub namespace fully qualified domain name"
+  value       = var.enable_dotnet_function && var.enable_event_hub ? "${azurerm_eventhub_namespace.main[0].name}.servicebus.windows.net" : null
+}
+
+output "eventhub_name" {
+  description = "Event Hub name"
+  value       = var.enable_dotnet_function && var.enable_event_hub ? azurerm_eventhub.events[0].name : null
+}
+
+output "eventhub_id" {
+  description = "Event Hub resource ID (for Event Grid subscription)"
+  value       = var.enable_dotnet_function && var.enable_event_hub ? azurerm_eventhub.events[0].id : null
+}
+

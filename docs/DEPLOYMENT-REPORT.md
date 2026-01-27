@@ -686,7 +686,6 @@ EventHubConnection__fullyQualifiedNamespace = "evhns-<suffix>.servicebus.windows
   - IP restrictions (only AzureEventGrid service tag)
   - Entra ID authentication
   - Webhook validation handshake
-  - Azure backbone routing (not public internet)
 
 ⚠️ **DDoS on Function Endpoints:**
 - Public endpoints could be targeted
