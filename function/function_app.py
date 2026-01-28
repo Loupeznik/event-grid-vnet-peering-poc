@@ -15,7 +15,15 @@ def publish_event(req: func.HttpRequest) -> func.HttpResponse:
     """
     HTTP trigger function that publishes events to Event Grid via private endpoint.
     """
-    logging.info('Processing HTTP request to publish event to Event Grid')
+    # Log source IP information
+    client_ip = req.headers.get('X-Forwarded-For', 'unknown').split(',')[0].strip()
+    x_original_host = req.headers.get('X-Original-Host', 'unknown')
+    x_arr_ssl = req.headers.get('X-ARR-SSL', 'unknown')
+
+    logging.info(f'Processing HTTP request to publish event to Event Grid')
+    logging.info(f'Source IP (X-Forwarded-For): {client_ip}')
+    logging.info(f'Original Host: {x_original_host}')
+    logging.info(f'ARR SSL: {x_arr_ssl}')
 
     try:
         endpoint = os.environ.get("EVENT_GRID_TOPIC_ENDPOINT")
@@ -77,8 +85,10 @@ def consume_event(event: func.EventGridEvent):
     """
     Event Grid trigger function that consumes events from Event Grid topic.
     This function proves that the VNET peering and private endpoint connectivity works.
+    Event Grid webhooks come from public internet (Microsoft limitation).
     """
     logging.info('Event Grid trigger function processed an event')
+    logging.info('⚠️ Note: Event Grid webhook delivery comes via public internet (Azure Event Grid service IPs)')
 
     event_data = {
         "id": event.id,

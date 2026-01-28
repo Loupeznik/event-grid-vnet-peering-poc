@@ -23,7 +23,17 @@ public class EventGridFunctions
         [HttpTrigger(AuthorizationLevel.Anonymous, "get", "post", Route = "publish")]
         HttpRequestData req)
     {
+        // Log source IP information
+        var clientIp = req.Headers.TryGetValues("X-Forwarded-For", out var forwardedFor)
+            ? forwardedFor.First().Split(',')[0].Trim()
+            : "unknown";
+        var originalHost = req.Headers.TryGetValues("X-Original-Host", out var host)
+            ? host.First()
+            : "unknown";
+
         _logger.LogInformation("Publishing event to Event Grid via private endpoint");
+        _logger.LogInformation("Source IP (X-Forwarded-For): {ClientIp}", clientIp);
+        _logger.LogInformation("Original Host: {OriginalHost}", originalHost);
 
         var endpoint = Environment.GetEnvironmentVariable("EVENT_GRID_TOPIC_ENDPOINT");
         if (string.IsNullOrEmpty(endpoint))
@@ -99,6 +109,7 @@ public class EventGridFunctions
     public void ConsumeEvent([EventGridTrigger] EventGridEvent eventGridEvent)
     {
         _logger.LogInformation("=== Event Grid Trigger Fired ===");
+        _logger.LogWarning("⚠️ Note: Event Grid webhook delivery comes via public internet (Azure Event Grid service IPs)");
         _logger.LogInformation("Event ID: {EventId}", eventGridEvent.Id);
         _logger.LogInformation("Event Type: {EventType}", eventGridEvent.EventType);
         _logger.LogInformation("Subject: {Subject}", eventGridEvent.Subject);
@@ -124,6 +135,7 @@ public class EventGridFunctions
         EventData[] events)
     {
         _logger.LogInformation("=== Event Hub Trigger Fired ===");
+        _logger.LogInformation("✅ Event Hub connection via PRIVATE ENDPOINT (VNET peering - fully private path)");
         _logger.LogInformation("Received {Count} events from Event Hub", events.Length);
 
         foreach (var eventData in events)
@@ -134,7 +146,7 @@ public class EventGridFunctions
 
                 // Event Grid wraps events in an array when delivering to Event Hub
                 var eventGridEvents = JsonSerializer.Deserialize<EventGridEvent[]>(eventBody);
-
+                
                 if (eventGridEvents == null || eventGridEvents.Length == 0)
                 {
                     _logger.LogWarning("No Event Grid events found in Event Hub message");

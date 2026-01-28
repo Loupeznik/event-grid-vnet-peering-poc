@@ -164,3 +164,14 @@ output "eventhub_id" {
   value       = var.enable_dotnet_function && var.enable_event_hub ? azurerm_eventhub.events[0].id : null
 }
 
+# Monitoring Outputs
+output "log_analytics_workspace_id" {
+  description = "Log Analytics workspace ID"
+  value       = azurerm_log_analytics_workspace.main.id
+}
+
+output "log_analytics_workspace_name" {
+  description = "Log Analytics workspace name"
+  value       = azurerm_log_analytics_workspace.main.name
+}
+
