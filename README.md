@@ -22,31 +22,43 @@ This PoC validates that Azure Functions can securely communicate with Event Grid
 - Complete network isolation
 - Infrastructure as Code with Terraform (azurerm v4)
 - Python 3.11 Azure Functions v4
+- **Optional**: Cross-subscription .NET Function deployment
 
 ## Project Structure
 
 ```
 .
-├── terraform/          # Infrastructure as Code
-│   ├── main.tf         # Provider and resource groups
-│   ├── networking.tf   # VNETs, subnets, peering
-│   ├── eventgrid.tf    # Event Grid and private endpoint
-│   ├── function.tf     # Function App and dependencies
-│   ├── dns.tf          # Private DNS configuration
-│   ├── iam.tf          # Role assignments
-│   ├── variables.tf    # Input variables
-│   ├── outputs.tf      # Output values
-│   └── terraform.tfvars # Configuration values
-├── function/           # Azure Function application
-│   ├── function_app.py # HTTP and Event Grid triggers
-│   ├── requirements.txt # Python dependencies
-│   └── host.json       # Function host configuration
-├── scripts/            # Deployment and testing
-│   ├── deploy-function.sh      # Deploy function code
-│   └── test-connectivity.sh    # Validate connectivity
-└── docs/               # Documentation
-    ├── DEPLOYMENT.md   # Detailed deployment guide
-    └── COSTS.md        # Cost analysis
+├── terraform/                   # Infrastructure as Code
+│   ├── main.tf                  # Provider and resource groups
+│   ├── networking.tf            # VNETs, subnets, peering
+│   ├── eventgrid.tf             # Event Grid and private endpoint
+│   ├── function.tf              # Python Function App
+│   ├── function-dotnet.tf       # .NET Function App (optional)
+│   ├── iam-dotnet.tf            # .NET Function IAM (optional)
+│   ├── dns.tf                   # Private DNS configuration
+│   ├── iam.tf                   # Role assignments
+│   ├── variables.tf             # Input variables
+│   ├── outputs.tf               # Output values
+│   └── terraform.tfvars         # Configuration values
+├── function/                    # Python Azure Function
+│   ├── function_app.py          # HTTP and Event Grid triggers
+│   ├── requirements.txt         # Python dependencies
+│   └── host.json                # Function host configuration
+├── EventGridPubSubFunction/     # .NET Azure Function (optional)
+│   ├── EventGridFunctions.cs    # HTTP and Event Grid triggers
+│   ├── Program.cs               # Function host setup
+│   ├── *.csproj                 # Project file
+│   └── local.settings.json      # Local configuration
+├── scripts/                     # Deployment and testing
+│   ├── helpers/
+│   │   └── azure-context.sh     # Multi-subscription helpers
+│   ├── deploy-function.sh       # Deploy both functions
+│   ├── deploy-dotnet-function.sh # Build .NET function
+│   └── test-connectivity.sh     # Validate connectivity
+└── docs/                        # Documentation
+    ├── CROSS-SUBSCRIPTION.md    # Cross-subscription guide
+    ├── DEPLOYMENT.md            # Detailed deployment guide
+    └── COSTS.md                 # Cost analysis
 
 ```
 
@@ -57,15 +69,26 @@ This PoC validates that Azure Functions can securely communicate with Event Grid
 - Azure CLI (authenticated)
 - Terraform 1.0+
 - bash shell
+- **Optional**: .NET SDK 10.0+ (for cross-subscription .NET function)
 
 ### Deploy Infrastructure
 
+**Phase 1: Single Subscription (Python only)**:
 ```bash
 cd terraform
 terraform init
-terraform plan
-terraform apply
+terraform apply -var-file=terraform.phase1.tfvars
 ```
+
+**Phase 2: Add Cross-Subscription (.NET)** (after Phase 1 succeeds):
+```bash
+cd terraform
+terraform apply -var-file=terraform.phase2.tfvars
+```
+
+**Why Phased?**: Cross-subscription VNET peering has known issues with azurerm provider v4.x when deployed in a single apply. Phased deployment ensures reliable resource creation.
+
+See [docs/CROSS-SUBSCRIPTION.md](docs/CROSS-SUBSCRIPTION.md) for detailed cross-subscription setup and [docs/KNOWN-ISSUES.md](docs/KNOWN-ISSUES.md) for troubleshooting.
 
 ### Deploy Function
 
@@ -101,6 +124,9 @@ See [docs/COSTS.md](docs/COSTS.md) for detailed breakdown.
 
 ## Documentation
 
+- **[Known Issues](docs/KNOWN-ISSUES.md)**: Common problems and solutions (READ THIS FIRST)
+- **[Security Guide](docs/SECURITY.md)**: IP restrictions and Entra ID authentication configuration
+- **[Cross-Subscription Guide](docs/CROSS-SUBSCRIPTION.md)**: Deploy .NET function in second subscription
 - **[Deployment Guide](docs/DEPLOYMENT.md)**: Step-by-step deployment instructions
 - **[Cost Analysis](docs/COSTS.md)**: Detailed cost breakdown and optimization
 
@@ -151,6 +177,11 @@ terraform destroy
 - No stored credentials or keys
 - Private DNS prevents DNS hijacking
 - VNET isolation
+- **IP restrictions** limiting access to Event Grid service + approved IPs
+- **Entra ID authentication** for webhook endpoints
+- **Event Grid managed identity** authentication to functions
+
+See [docs/SECURITY.md](docs/SECURITY.md) for detailed security configuration.
 
 ## Monitoring
 
