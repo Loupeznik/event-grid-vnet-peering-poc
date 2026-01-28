@@ -54,10 +54,27 @@ terraform apply -var-file=terraform.phase2.tfvars
 terraform destroy -var-file=terraform.phase2.tfvars
 ```
 
+**Phase 3: Enable Event Hub (Fully Private)**:
+```bash
+cd terraform
+# After Phase 2 succeeds
+terraform apply -var="enable_event_hub=true" -var-file=terraform.phase2.tfvars
+```
+
 **Why Two Phases?**
 - Cross-subscription VNET peering has known issues with azurerm provider v4.x
 - Deploying in phases ensures all Subscription 1 resources exist before Subscription 2 references them
 - See [docs/KNOWN-ISSUES.md](docs/KNOWN-ISSUES.md) for details
+
+**Cross-Subscription Prerequisites**:
+- Access to both subscriptions (`az account list`)
+- Network Contributor role in both subscriptions
+- Update `terraform/terraform.phase2.tfvars`:
+  ```hcl
+  enable_dotnet_function = true
+  subscription_id_2 = "your-subscription-2-id"
+  enable_event_hub = false  # Set true for fully private
+  ```
 
 ### Function Deployment
 
@@ -74,16 +91,77 @@ This script:
 
 ### Testing
 
-Test connectivity and VNET peering:
+Test connectivity and VNET peering (auto-detects single/cross-subscription):
 ```bash
 ./scripts/test-connectivity.sh
 ```
 
-Manually publish test event:
+**Single Subscription - Python Function**:
 ```bash
-curl -X POST "https://<function-name>.azurewebsites.net/api/publish" \
+# Get function name from Terraform
+PYTHON_FUNCTION=$(cd terraform && terraform output -raw function_app_name)
+
+# Publish test event
+curl -X POST "https://${PYTHON_FUNCTION}.azurewebsites.net/api/publish" \
   -H "Content-Type: application/json" \
-  -d '{"message": "Test message"}'
+  -d '{"message": "Test from Python (Sub 1)"}'
+```
+
+**Cross-Subscription - .NET Function** (Phase 2):
+```bash
+# Get .NET function name from Terraform
+DOTNET_FUNCTION=$(cd terraform && terraform output -raw dotnet_function_app_name)
+
+# Publish event from Subscription 2 → Event Grid (Sub 1) → .NET Function (Sub 2)
+curl -X POST "https://${DOTNET_FUNCTION}.azurewebsites.net/api/publish" \
+  -H "Content-Type: application/json" \
+  -d '{"message": "Cross-subscription test from .NET"}'
+
+# Check logs in Subscription 2
+az account set --subscription $(cd terraform && terraform output -raw subscription_id_2)
+az webapp log tail \
+  --name ${DOTNET_FUNCTION} \
+  --resource-group $(cd terraform && terraform output -raw dotnet_resource_group)
+```
+
+**Fully Private Event Hub Path** (Phase 3):
+```bash
+# Publish via Python → Event Grid → Event Hub → .NET (all private)
+curl -X POST "https://${PYTHON_FUNCTION}.azurewebsites.net/api/publish" \
+  -H "Content-Type: application/json" \
+  -d '{"eventType": "test.eventhub", "message": "Fully private via Event Hub"}'
+
+# Verify in Application Insights (Subscription 2)
+az monitor app-insights query \
+  --app $(cd terraform && terraform output -raw dotnet_app_insights_name) \
+  --analytics-query "traces | where timestamp > ago(10m) | where message contains 'FULLY PRIVATE'" \
+  --subscription $(cd terraform && terraform output -raw subscription_id_2)
+```
+
+**Cross-Subscription Validation**:
+```bash
+# 1. Verify VNET peering status (both subscriptions)
+az network vnet peering list \
+  --resource-group $(cd terraform && terraform output -raw network_resource_group) \
+  --vnet-name $(cd terraform && terraform output -raw eventgrid_vnet_name) \
+  --query "[?name=='peer-eventgrid-to-dotnet'].{Name:name, Status:peeringState}"
+
+az account set --subscription $(cd terraform && terraform output -raw subscription_id_2)
+az network vnet peering list \
+  --resource-group $(cd terraform && terraform output -raw dotnet_network_resource_group) \
+  --vnet-name $(cd terraform && terraform output -raw dotnet_vnet_name) \
+  --query "[?name=='peer-dotnet-to-eventgrid'].{Name:name, Status:peeringState}"
+
+# 2. Verify cross-subscription IAM roles
+az role assignment list \
+  --scope $(cd terraform && terraform output -raw eventgrid_topic_id) \
+  --query "[?principalType=='ServicePrincipal'].{Role:roleDefinitionName, Principal:principalId}"
+
+# 3. Verify private DNS resolution (should resolve to 10.1.1.x)
+az functionapp config appsettings list \
+  --name $(cd terraform && terraform output -raw dotnet_function_app_name) \
+  --resource-group $(cd terraform && terraform output -raw dotnet_resource_group) \
+  --query "[?name=='EVENT_GRID_TOPIC_ENDPOINT'].value"
 ```
 
 ### .NET Function Development
@@ -138,14 +216,16 @@ az webapp log tail \
 - `main.tf`: Provider configuration (azurerm, azuread, subscription2 alias), resource groups, random suffix
 - `networking.tf`: VNETs, subnets, VNET peering (single and cross-subscription)
 - `eventgrid.tf`: Event Grid topic, private endpoint
+- `eventhub.tf`: Event Hub namespace, hub, private endpoint (optional, for fully private delivery)
 - `function.tf`: Python Function App with IP restrictions and Entra ID auth
 - `function-dotnet.tf`: .NET Function infrastructure with security (optional, Subscription 2)
 - `auth.tf`: Entra ID app registrations, Event Grid system topic, role assignments
 - `iam-dotnet.tf`: Cross-subscription role assignments for .NET function (optional)
 - `dns.tf`: Private DNS zone and VNET links (including VNET3 link)
 - `iam.tf`: Role assignments for Python function managed identity
-- `variables.tf`: Input variables (enable_dotnet_function, subscription_id_2, allowed_ip_addresses, enable_function_authentication)
-- `outputs.tf`: All function names, Event Grid info, conditional .NET outputs, auth configuration
+- `monitoring.tf`: Application Insights, Log Analytics, diagnostic settings for all resources
+- `variables.tf`: Input variables (enable_dotnet_function, subscription_id_2, enable_event_hub, allowed_ip_addresses, enable_function_authentication)
+- `outputs.tf`: All function names, Event Grid info, Event Hub info, conditional .NET outputs, auth configuration
 
 ### Python Function (function/)
 
@@ -154,6 +234,16 @@ az webapp log tail \
   - `consume_event`: Event Grid trigger that logs received events
 - `requirements.txt`: Python dependencies (azure-functions, azure-eventgrid, azure-identity)
 - `host.json`: Function runtime configuration
+
+### .NET Function (EventGridPubSubFunction/)
+
+- `EventGridFunctions.cs`: Three functions for cross-subscription scenarios
+  - `PublishEvent`: HTTP trigger that publishes to Event Grid (Subscription 1) via managed identity
+  - `ConsumeEvent`: Event Grid webhook trigger for push-based delivery (hybrid security)
+  - `ConsumeEventFromEventHub`: Event Hub trigger for fully private pull-based delivery
+- `Program.cs`: Function host configuration
+- `*.csproj`: Project file with Azure Functions and Event Hub dependencies
+- `local.settings.json`: Local development configuration
 
 ### Deployment Scripts (scripts/)
 
@@ -166,11 +256,26 @@ az webapp log tail \
 
 ### Private Endpoint Connectivity
 
-Event Grid topic has public access disabled. All communication flows through:
+**Publishing Path** (Always Private):
 1. Function App publishes via `DefaultAzureCredential` (managed identity)
-2. DNS resolves Event Grid hostname to private IP (10.1.1.x)
+2. DNS resolves Event Grid hostname to private IP (10.1.1.4)
 3. Traffic routes through VNET peering to private endpoint in VNET 2
-4. Event Grid delivers to Function via webhook (public endpoint with security layers)
+4. Event Grid receives event via private endpoint
+
+**Delivery Path** (Two Options):
+
+**Option 1: Webhook Delivery** (Hybrid - Public with Security):
+- Event Grid delivers to Function via webhook
+- Uses Azure backbone but public endpoint
+- Security: IP restrictions (AzureEventGrid service tag) + Entra ID authentication
+
+**Option 2: Event Hub Delivery** (Fully Private):
+1. Event Grid delivers to Event Hub via private endpoint (10.1.1.5)
+2. Traffic stays within Azure backbone (Subscription 1)
+3. .NET Function pulls events from Event Hub via VNET peering (10.1.1.5)
+4. 100% private connectivity end-to-end
+
+Enable Event Hub: `terraform apply -var="enable_event_hub=true"`
 
 ### Security Configuration
 
@@ -245,6 +350,56 @@ When working with cross-subscription setup:
 4. Monitor logs in both subscriptions' Application Insights
 5. Check VNET peering status: `az network vnet peering list`
 
+**Cross-Subscription Workflow**:
+
+1. **Deploy Infrastructure** (2 phases):
+   ```bash
+   # Phase 1: Base infrastructure in Subscription 1
+   cd terraform
+   terraform apply -var-file=terraform.phase1.tfvars
+
+   # Phase 2: Add .NET function in Subscription 2
+   terraform apply -var-file=terraform.phase2.tfvars
+
+   # Optional Phase 3: Enable Event Hub for fully private
+   terraform apply -var="enable_event_hub=true" -var-file=terraform.phase2.tfvars
+   ```
+
+2. **Deploy Functions** (automatic cross-subscription handling):
+   ```bash
+   ./scripts/deploy-function.sh
+   ```
+   This script:
+   - Detects cross-subscription deployment
+   - Deploys Python function to Subscription 1
+   - Deploys .NET function to Subscription 2
+   - Creates appropriate Event Grid subscriptions (webhook or Event Hub)
+
+3. **Test Cross-Subscription Communication**:
+   - Publish from .NET function (Sub 2)
+   - Event routes through Event Grid (Sub 1)
+   - Delivered back to .NET function via webhook or Event Hub
+
+4. **Monitor Both Subscriptions**:
+   ```bash
+   # Subscription 1 - Event Grid metrics
+   az monitor metrics list \
+     --resource $(cd terraform && terraform output -raw eventgrid_topic_id) \
+     --metric PublishSuccessCount
+
+   # Subscription 2 - Function execution logs
+   az account set --subscription $(cd terraform && terraform output -raw subscription_id_2)
+   az monitor app-insights query \
+     --app $(cd terraform && terraform output -raw dotnet_app_insights_name) \
+     --analytics-query "requests | where timestamp > ago(1h) | summarize count() by name"
+   ```
+
+5. **Troubleshooting Cross-Subscription Issues**:
+   - **Peering not connected**: Check NSG rules, verify peering in both directions
+   - **DNS not resolving**: Verify private DNS zone links to VNET 3
+   - **IAM errors**: Verify .NET function managed identity has roles in Subscription 1
+   - **Event delivery failing**: Check Event Grid subscription status, verify endpoint accessible
+
 ### Troubleshooting Private Endpoint Issues
 
 Check DNS resolution from Function App context:
@@ -294,10 +449,26 @@ az role assignment list \
 
 ## Cost Management
 
-3-day PoC costs approximately $3-5 USD (North Europe):
+**Single Subscription (Phase 1)**: ~$3-5 USD (3 days)
 - App Service Plan B1: $1.30
 - Private Endpoint: $0.74
 - Other services: <$1.00
+
+**Cross-Subscription Webhook (Phase 2)**: ~$6-8 USD (3 days)
+- Additional App Service Plan (Sub 2): $1.30
+- Additional Private Endpoint: $0.74
+- Cross-subscription VNET peering: $0.02
+- Base Phase 1 costs: $3-5
+
+**Cross-Subscription + Event Hub (Phase 3)**: ~$12-15 USD (3 days)
+- Event Hub Standard (3 days prorated): ~$5.50
+- Event Hub Private Endpoint: $0.74
+- Base Phase 2 costs: $6-8
+
+**Monthly Costs** (if running continuously):
+- Single Subscription: ~$44/month
+- Cross-Subscription Webhook: ~$88/month
+- Cross-Subscription + Event Hub: ~$99/month
 
 Clean up immediately after testing with `terraform destroy` to avoid ongoing charges.
 
@@ -315,3 +486,10 @@ Clean up immediately after testing with `terraform destroy` to avoid ongoing cha
 - Entra ID authentication is enabled by default for additional security
 - See [docs/CROSS-SUBSCRIPTION.md](docs/CROSS-SUBSCRIPTION.md) for detailed cross-subscription architecture
 - See [docs/SECURITY.md](docs/SECURITY.md) for security configuration and best practices
+
+**Deployment Phases**:
+- **Phase 1 (Single Subscription)**: Python function only, single subscription, webhook delivery
+- **Phase 2 (Cross-Subscription)**: Adds .NET function in Subscription 2, cross-subscription VNET peering, webhook delivery
+- **Phase 3 (Fully Private)**: Adds Event Hub for 100% private delivery via pull-based consumption
+- **When to use Event Hub**: Strict security requirements, compliance mandates, air-gapped architectures
+- **When to use Webhook**: Cost-sensitive scenarios, public delivery acceptable with IP restrictions + Entra ID
