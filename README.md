@@ -87,6 +87,8 @@ This deploys:
 - VNET 2 (10.1.0.0/16): Event Grid with private endpoint
 - Single subscription architecture
 
+For simplified deployment process for this use case, see the [original-single-subscription](https://github.com/Loupeznik/event-grid-vnet-peering-poc/tree/original-single-subscription) branch of this repo.
+
 #### Option 2: Cross-Subscription (.NET + Event Hub)
 
 **Prerequisites**:
