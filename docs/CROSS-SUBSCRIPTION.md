@@ -274,12 +274,12 @@ resource "azurerm_eventgrid_event_subscription" "to_eventhub" {
 
 **Event Hub Alternative**:
 - Event Grid Topic: $0.60/million operations
-- Event Hub Standard: $11/month (1 throughput unit)
+- Event Hub Standard: $55/month (1 throughput unit)
 - Event Hub Private Endpoint: $7.30/month
 - Event Grid Private Endpoint: $7.30/month
-- Total: ~$25-30/month
+- Total: ~$69-70/month
 
-**Cost Increase**: ~$17-20/month for fully private architecture
+**Cost Increase**: ~$60/month for fully private architecture
 
 ### When to Use Event Hub Approach
 
@@ -685,11 +685,11 @@ For comparison, single-subscription setup:
 ### Event Hub Alternative Cost Impact
 
 Adding Event Hub for fully private delivery:
-- Event Hub Standard: +$11/month
+- Event Hub Standard: +$55/month
 - Event Hub Private Endpoint: +$7.30/month
-- Total Additional: +$18.30/month
+- Total Additional: +$62.30/month
 
-**Total with Event Hub**: ~$56-60/month
+**Total with Event Hub**: ~$100-105/month
 
 ## Conclusion
 

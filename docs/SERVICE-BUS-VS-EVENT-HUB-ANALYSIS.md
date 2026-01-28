@@ -26,7 +26,7 @@ During implementation, we discovered that Service Bus private endpoints are **on
 - **Fixed cost** regardless of whether you send 0 messages or 1 billion messages
 
 **Revised Recommendation:**
-- ✅ **Event Hub** is now the **best option** for fully private PoC ($31/month, 22x cheaper)
+- ✅ **Event Hub** is now the **best option** for fully private PoC ($63/month, 10x cheaper)
 - ✅ **Storage Queue** remains best for budget-conscious PoC ($8/month, semi-private)
 - ❌ **Service Bus Premium** is **NOT recommended** for PoC due to extreme cost
 
@@ -43,7 +43,7 @@ During implementation, we discovered that Service Bus private endpoints are **on
 | Aspect | Service Bus | Event Hub | Storage Queue | Winner |
 |--------|-------------|-----------|---------------|--------|
 | **Feasibility** | ✅ Fully Supported | ✅ Fully Supported | ✅ Supported | Tie |
-| **Monthly Cost** | ⚠️ **~$677/month (Premium)** | ~$31/month | ~$8/month | 🏆 Storage Queue |
+| **Monthly Cost** | ⚠️ **~$677/month (Premium)** | ~$63/month | ~$8/month | 🏆 Storage Queue |
 | **Complexity** | Lower (traditional queue) | Medium (partition-based) | Lowest (simple queue) | 🏆 Storage Queue |
 | **Privacy Level** | ✅ Fully Private (PE) | ✅ Fully Private (PE) | ⚠️ Semi-Private (Trusted) | 🏆 Event Hub |
 | **Latency** | 50-200ms | 100-500ms | 50-300ms | 🏆 Service Bus |
@@ -55,13 +55,13 @@ During implementation, we discovered that Service Bus private endpoints are **on
 
 ### Recommendation
 
-⚠️ **CRITICAL UPDATE:** Service Bus private endpoints require **Premium SKU** (~$677/month), making it **85x more expensive** than Storage Queue and **22x more expensive** than Event Hub.
+⚠️ **CRITICAL UPDATE:** Service Bus private endpoints require **Premium SKU** (~$677/month), making it **85x more expensive** than Storage Queue and **10x more expensive** than Event Hub.
 
 **For this PoC:** 🏆 **Azure Event Hub (Standard Tier)**
 
 **Rationale:**
 - **Fully private** (private endpoints for Event Grid delivery)
-- **Affordable cost** (~$31/month - only 4x Storage Queue, 22x cheaper than Service Bus Premium)
+- **Affordable cost** (~$63/month - only 4x Storage Queue, 10x cheaper than Service Bus Premium)
 - Production-grade reliability and support
 - Scales to high volumes if needed
 - Rich feature set (partitioning, event replay, retention)
@@ -80,7 +80,7 @@ During implementation, we discovered that Service Bus private endpoints are **on
   - Service Bus-specific features (sessions, transactions, request-reply)
   - Existing enterprise Service Bus infrastructure
   - Company-mandated Service Bus standard
-- **Cost warning:** ~$67 for just 3-day PoC vs ~$3 for Event Hub
+- **Cost warning:** ~$67 for just 3-day PoC vs ~$6.30 for Event Hub
 
 **Service Bus Premium Pricing Model:**
 - **Hourly charge:** ~$0.928/hour per messaging unit
@@ -1538,13 +1538,13 @@ az storage account show \
 
 | Component | Service Bus Premium | Event Hub | Storage Queue | Winner |
 |-----------|---------------------|-----------|---------------|--------|
-| **Base Service** | ⚠️ **$669.44/month (Premium, 1 MU)** | $22.80/month (Standard, 1 TU) | $0.00/month (pay-per-use) | 🏆 Storage Queue |
+| **Base Service** | ⚠️ **$669.44/month (Premium, 1 MU)** | $55.00/month (Standard, 1 TU) | $0.00/month (pay-per-use) | 🏆 Storage Queue |
 | **Operations (1M/month)** | Included | $0.022 | $0.004 per 10k ops = $0.40 | 🏆 Storage Queue |
 | **Storage** | Included | 84 GB included per TU | $0.045/GB (~$0.05 for <1GB) | Service Bus/Event Hub |
 | **Private Endpoint** | $7.30/month | $7.30/month | $7.30/month | Tie |
 | **Private DNS Zone** | $0.50/month | $0.50/month | $0.50/month | Tie |
 | **Storage Account** | N/A | N/A | $0.023/month (LRS) | N/A |
-| **TOTAL (1M msgs/month)** | ⚠️ **~$677/month** | **~$31/month** | **~$8/month** | **🏆 Storage Queue saves $669/month vs Service Bus** |
+| **TOTAL (1M msgs/month)** | ⚠️ **~$677/month** | **~$63/month** | **~$8/month** | **🏆 Storage Queue saves $669/month vs Service Bus** |
 
 **Service Bus Premium Pricing Notes:**
 - **Hourly billing:** ~$0.928/hour per messaging unit (MU)
@@ -1558,32 +1558,32 @@ az storage account show \
 
 **At 1 million events/month:**
 - **Service Bus Premium:** ~$677/month ❌
-- **Event Hub:** ~$31/month 🥈
+- **Event Hub:** ~$63/month 🥈
 - **Storage Queue:** ~$8/month 🏆
 
 **At 10 million events/month:**
 - **Service Bus Premium:** ~$677/month (operations included) ❌
-- **Event Hub:** ~$31/month (events are cheap, TU is expensive) 🥈
+- **Event Hub:** ~$63/month (events are cheap, TU is expensive) 🥈
 - **Storage Queue:** ~$12/month ($8 base + $4 for ops) 🏆
 
 **At 50 million events/month:**
 - **Service Bus Premium:** ~$677/month (operations included) ❌
-- **Event Hub:** ~$32/month (events scale cheaply) 🏆
+- **Event Hub:** ~$64/month (events scale cheaply) 🏆
 - **Storage Queue:** ~$28/month ($8 base + $20 for ops) 🥈
 
 **At 100 million events/month:**
 - **Service Bus Premium:** ~$677/month (operations included) ❌
-- **Event Hub:** ~$34/month (events scale cheaply, TU is fixed cost) 🏆
+- **Event Hub:** ~$66/month (events scale cheaply, TU is fixed cost) 🏆
 - **Storage Queue:** ~$48/month ($8 base + $40 for ops) 🥈
 
 **At 500 million events/month:**
 - **Service Bus Premium:** ~$677/month (operations included) ❌
-- **Event Hub:** ~$45/month (still cheapest for high volume) 🏆
+- **Event Hub:** ~$75/month (still cheapest for high volume) 🏆
 - **Storage Queue:** ~$208/month ($8 base + $200 for ops) 🥈
 
 **Break-even points:**
 - **Storage Queue vs Event Hub:** ~80M events/month (Event Hub becomes cheaper)
-- **Service Bus Premium vs Event Hub:** Never (Event Hub always 22x cheaper)
+- **Service Bus Premium vs Event Hub:** Never (Event Hub always 10x cheaper)
 - **Service Bus Premium vs Storage Queue:** Never (Storage Queue always 85x cheaper at 1M events)
 
 **Key Insight:** Service Bus Premium's fixed $677/month base cost makes it uneconomical for any PoC or low-to-medium volume scenario.
@@ -1838,9 +1838,9 @@ All three approaches provide security improvements over webhooks:
 
 ❌ **Don't use when:**
 - ❌ **Cost-sensitive** (85x more expensive than Storage Queue, 22x more than Event Hub)
-- ❌ **PoC/testing** ($67 for 3-day PoC vs $3 for Event Hub)
+- ❌ **PoC/testing** ($67 for 3-day PoC vs $6.30 for Event Hub)
 - ❌ **Low-medium volume** (fixed $677 cost regardless of usage)
-- ❌ **Most production scenarios** (Event Hub provides same privacy at $31/month)
+- ❌ **Most production scenarios** (Event Hub provides same privacy at $63/month)
 
 ### Use Event Hub When:
 
@@ -1868,26 +1868,26 @@ Start: Do you need fully private connectivity (compliance/regulatory)?
 │   │
 │   └─ NO → Expected volume >80M events/month?
 │       │
-│       ├─ YES → Use Event Hub ($31/month)
+│       ├─ YES → Use Event Hub ($63/month)
 │       │
 │       └─ NO → Use Storage Queue ($8/month) 🏆
 │
 └─ YES (fully private required) → Budget >$677/month for Service Bus Premium?
     │
-    ├─ NO → Use Event Hub Standard ($31/month) 🏆
-    │        [Same privacy level, 22x cheaper]
+    ├─ NO → Use Event Hub Standard ($63/month) 🏆
+    │        [Same privacy level, 10x cheaper]
     │
     └─ YES (high budget) → Need specific Service Bus features?
                            (sessions, transactions, request-reply)
         │
         ├─ YES → Use Service Bus Premium ($677/month)
-        │        [Only if features justify 22x cost premium]
+        │        [Only if features justify 10x cost premium]
         │
-        └─ NO → Use Event Hub Standard ($31/month) 🏆
+        └─ NO → Use Event Hub Standard ($63/month) 🏆
                  [Same privacy, better value]
 ```
 
-**⚠️ Key Change:** Service Bus Premium's extreme cost ($677/month) eliminates it from most scenarios. Event Hub Standard ($31/month) provides the same **fully private** connectivity at 22x lower cost.
+**⚠️ Key Change:** Service Bus Premium's extreme cost ($677/month) eliminates it from most scenarios. Event Hub Standard ($63/month) provides the same **fully private** connectivity at 10x lower cost.
 
 ### For This PoC: Revised Recommendation (Post-Premium SKU Discovery)
 
@@ -1899,7 +1899,7 @@ Start: Do you need fully private connectivity (compliance/regulatory)?
 
 **Rationale:**
 1. **Fully Private:** Same privacy as Service Bus Premium at 22x lower cost
-2. **Reasonable Cost:** ~$31/month (saves $646/month vs Service Bus Premium)
+2. **Reasonable Cost:** ~$63/month (saves $646/month vs Service Bus Premium)
 3. **Production-Grade:** Enterprise reliability and features
 4. **Scalable:** Can handle growth if needed
 5. **Best Balance:** Privacy + cost efficiency
@@ -2275,7 +2275,7 @@ curl -H "Metadata: true" "http://169.254.169.254/metadata/identity/oauth2/token?
 
 | Aspect | Storage Queue | Service Bus Premium | Event Hub |
 |--------|---------------|---------------------|-----------|
-| **Cost (1M events/month)** | ~$8/month 🏆 | ⚠️ ~$677/month | ~$31/month 🥈 |
+| **Cost (1M events/month)** | ~$8/month 🏆 | ⚠️ ~$677/month | ~$63/month 🥈 |
 | **Privacy Level** | ⚠️ Semi-Private | ✅ Fully Private | ✅ Fully Private 🏆 |
 | **Complexity** | Lowest 🏆 | Low | Medium |
 | **Implementation Time** | ~6 hours 🏆 | ~8 hours | ~12 hours |
@@ -2309,7 +2309,7 @@ curl -H "Metadata: true" "http://169.254.169.254/metadata/identity/oauth2/token?
 - ❌ **Extreme cost:** ~$677/month (85x more than Storage Queue, 22x more than Event Hub)
 - ❌ **Poor value:** Same privacy as Event Hub at 22x the cost
 - ❌ **Not justified:** No features worth the 22x premium for this PoC
-- ❌ **PoC budget killer:** $67 for 3-day test vs $3 for Event Hub
+- ❌ **PoC budget killer:** $67 for 3-day test vs $6.30 for Event Hub
 
 **Only consider if:**
 - Budget >$677/month explicitly approved
@@ -2325,7 +2325,7 @@ curl -H "Metadata: true" "http://169.254.169.254/metadata/identity/oauth2/token?
 
 **Pros:**
 - **Fully private:** Private endpoints end-to-end
-- **Reasonable cost:** ~$31/month (22x cheaper than Service Bus Premium!)
+- **Reasonable cost:** ~$63/month (10x cheaper than Service Bus Premium!)
 - **Production-grade:** Enterprise reliability and features
 - **Streaming features:** Multiple consumers, event replay, Kafka protocol
 - **Best for analytics:** Time-series, aggregations
@@ -2341,7 +2341,7 @@ curl -H "Metadata: true" "http://169.254.169.254/metadata/identity/oauth2/token?
 **For This PoC:**
 
 1. **Fully Private Requirement (Compliance/Regulatory):**
-   - 🏆 **Event Hub Standard** ($31/month)
+   - 🏆 **Event Hub Standard** ($63/month)
    - Full private endpoint connectivity
    - Best balance of privacy and cost
    - Production-grade features
@@ -2355,8 +2355,8 @@ curl -H "Metadata: true" "http://169.254.169.254/metadata/identity/oauth2/token?
 3. **❌ AVOID for PoC:**
    - ❌ **Service Bus Premium** ($677/month)
    - Only if budget explicitly approved
-   - 22x more expensive than Event Hub for same privacy
-   - $67 for 3-day test (vs $3 for Event Hub)
+   - 10x more expensive than Event Hub for same privacy
+   - $67 for 3-day test (vs $6.30 for Event Hub)
 
 ### Migration Path (If Starting with Storage Queue)
 

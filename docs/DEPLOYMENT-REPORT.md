@@ -618,12 +618,12 @@ EventHubConnection__fullyQualifiedNamespace = "evhns-<suffix>.servicebus.windows
 
 **Event Hub Alternative:**
 - Event Grid: ~$0.60/million events
-- Event Hub Standard: ~$11/month (1 throughput unit)
+- Event Hub Standard: ~$55/month (1 throughput unit)
 - Functions: ~$13/month (Basic B1)
 - Private Endpoint: ~$7.30/month
-- **Total**: ~$31-32/month
+- **Total**: ~$75-76/month
 
-**Additional Cost**: ~$17-18/month for fully private delivery
+**Additional Cost**: ~$62/month for fully private delivery
 
 ### When to Use Event Hub Approach
 

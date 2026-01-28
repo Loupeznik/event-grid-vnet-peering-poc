@@ -527,7 +527,7 @@ Message: Found the following functions:
 | **Authentication** | Webhook validation + Entra ID | Managed Identity (Event Hubs RBAC) |
 | **Trigger Type** | EventGridTrigger (push) | EventHubTrigger (pull) |
 | **Complexity** | Low (native) | Medium (additional component) |
-| **Cost** | Event Grid only (~$0.60/M events) | Event Grid + Event Hub (~$31/month) |
+| **Cost** | Event Grid only (~$0.60/M events) | Event Grid + Event Hub (~$63/month) |
 | **Air-gapped** | ❌ No (webhook public) | ✅ Yes (fully private) |
 | **Event Replay** | ❌ No | ✅ Yes (1-day retention) |
 | **Ordering** | ❌ No guarantees | ✅ Per-partition ordering |
@@ -698,20 +698,20 @@ Message: Found the following functions:
 | App Service Plan (.NET) | Basic B1 | 1 | $13.14 |
 | Storage Accounts | Standard LRS | 2 | $0.40 |
 | Event Grid Topic | Standard | 1 | ~$0.60/million events |
-| **Event Hub Namespace** | **Standard** | **1** | **~$11.00** |
+| **Event Hub Namespace** | **Standard** | **1** | **~$55.00** |
 | Private Endpoints | Standard | 2 (Event Grid + Event Hub) | $14.60 |
 | Private DNS Zones | Standard | 2 | $1.00 |
 | VNET Peering | Standard | Data transfer | ~$0.01/GB |
 | Application Insights | Pay-as-you-go | 2 | ~$2.30/GB |
-| **Total (Base)** | | | **~$55/month** |
+| **Total (Base)** | | | **~$99/month** |
 
 ### Cost Comparison
 
 | Configuration | Monthly Cost |
 |--------------|--------------|
 | Webhook Only (No Event Hub) | ~$44/month |
-| **Event Hub (This Implementation)** | **~$55/month** |
-| **Additional Cost for Full Privacy** | **~$11/month** |
+| **Event Hub (This Implementation)** | **~$99/month** |
+| **Additional Cost for Full Privacy** | **~$55/month** |
 
 ### Additional Variable Costs
 
@@ -737,8 +737,8 @@ Message: Found the following functions:
 
 1. **Service Bus Premium SKU Requirement**
    - **Issue**: Service Bus requires Premium SKU (~$677/month) for private endpoints
-   - **Solution**: Pivoted to Event Hub Standard SKU (~$11/month) with private endpoint support
-   - **Lesson**: Event Hub is significantly more cost-effective for private event streaming
+   - **Solution**: Pivoted to Event Hub Standard SKU (~$55/month) with private endpoint support
+   - **Lesson**: Event Hub is significantly more cost-effective for private event streaming (7x cheaper than Service Bus)
 
 2. **Event Hub Network Configuration**
    - **Issue**: Multiple Terraform errors with Event Hub network rulesets configuration
@@ -877,4 +877,4 @@ This deployment successfully demonstrates **cross-subscription Event Grid commun
 **Report Generated:** January 27, 2026
 **Deployment Status:** ✅ Production Ready (Event Hub Fully Private Path)
 **Verification:** ✅ All Tests Passing (Webhook + Event Hub)
-**Cost:** ~$55/month (~$11 additional for full privacy via Event Hub)
+**Cost:** ~$99/month (~$55 additional for full privacy via Event Hub)
